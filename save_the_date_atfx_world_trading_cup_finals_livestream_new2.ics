@@ -1,0 +1,18 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//ATFX//IB//EN
+BEGIN:VEVENT
+UID:atfx-1795664723843@atcapital.group
+DTSTAMP:20261126T034523Z
+DTSTART:20261204T110000Z
+DTEND:20261204T140000Z
+SUMMARY:SAVE THE DATE: ATFX WORLD TRADING CUP FINALS LIVESTREAM
+DESCRIPTION:SAVE THE DATE: ATFX WORLD TRADING CUP FINALS LIVESTREAM\n\n<br>Get ready for the ATFX World Trading Cup Finals Livestream! Be part of the excitement as we bring you the biggest moments, fierce competition and celebrations as we crown the ultimate champion.<br>\n<br>\n📅 Date: 4 December 2026<br>\n🕒 Time: 19:00-22:00 (GMT+8)<br>\n<br>\n🎁 WATCH & WIN USD 500 IN TRADING CREDITS!<br>\n<br>\nTune in live for a chance to win USD 500 in Trading Credits through our exclusive lucky draw!<br>\n<br>\nMark your calendar and don't miss the final showdown!<br>\n<br>\n👉 WATCH THE LIVESTREAM HERE https://bit.ly/4CjcBEI\n
+LOCATION:https://bit.ly/4CjcBEI
+BEGIN:VALARM
+ACTION:DISPLAY
+DESCRIPTION:Reminder
+TRIGGER:-PT15M
+END:VALARM
+END:VEVENT
+END:VCALENDAR
