@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Event Calendar Builder & Redirect Generator</title>
+
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        max-width: 850px;
+        margin: 0 auto;
+        padding: 40px 20px 60px 20px;
+        color: #fff;
+        position: relative;
+        z-index: 1;
+    }
+    /* Background */
+    body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        background-image: url("https://lp.atcapital.group/wp-content/uploads/2025/11/20251031_TH-Retail-Webinar-CopyTrading_top_banner_bg.webp");
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        filter: brightness(0.35);
+        z-index: -1;
+    }
+    .logo {
+        display: block;
+        margin: 0 auto 30px auto;
+        width: 220px;
+    }
+    h2 {
+        text-align: center;
+        margin-bottom: 18px;
+        font-size: 24px;
+    }
+    label {
+        display: block;
+        margin-top: 14px;
+        font-weight: bold;
+    }
+    input, textarea, select {
+        width: 100%;
+        padding: 9px 10px;
+        margin-top: 6px;
+        box-sizing: border-box;
+        border-radius: 6px;
+        border: none;
+        font-size: 14px;
+    }
+    textarea {
+        min-height: 70px;
+    }
+    button {
+        width: 100%;
+        padding: 13px;
+        margin-top: 18px;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 16px;
+        font-weight: 600;
+        color: #fff;
+        background: #0066ff;
+    }
+    hr {
+        margin: 30px 0;
+        border: none;
+        border-top: 1px solid rgba(255,255,255,0.2);
+    }
+    small {
+        opacity: 0.8;
+        font-size: 12px;
+    }
+</style>
+
+<script>
+/* ===================== Helpers ===================== */
+
+// Format Date object as YYYYMMDDTHHMMSSZ
+function formatDateFromDate(d) {
+    const pad = n => (n < 10 ? "0" + n : "" + n);
+    return (
+        d.getUTCFullYear() +
+        pad(d.getUTCMonth() + 1) +
+        pad(d.getUTCDate()) +
+        "T" +
+        pad(d.getUTCHours()) +
+        pad(d.getUTCMinutes()) +
+        pad(d.getUTCSeconds()) +
+        "Z"
+    );
+}
+
+// Convert datetime-local + GMT offset (minutes) => UTC stamp + ISO
+function getUTCFromLocal(dtValue) {
+    if (!dtValue) return null;
+
+    const tzOffsetMin = parseInt(document.getElementById("tzOffset").value, 10) || 0;
+
+    const parts = dtValue.split("T");
+    if (parts.length !== 2) return null;
+    const datePart = parts[0];
+    const timePart = parts[1];
+
+    const [year, month, day] = datePart.split("-").map(Number);
+    const [hour, minute]     = timePart.split(":").map(Number);
+
+    if (
+        isNaN(year) || isNaN(month) || isNaN(day) ||
+        isNaN(hour) || isNaN(minute)
+    ) return null;
+
+    // This is the local time in selected GMT offset; convert to UTC milliseconds
+    const localMs = Date.UTC(year, month - 1, day, hour, minute);
+    const utcMs   = localMs - tzOffsetMin * 60000; // subtract offset to get real UTC
+
+    const d = new Date(utcMs);
+    return {
+        stamp: formatDateFromDate(d),
+        iso: d.toISOString()
+    };
+}
+
+// Escape for JS string in generated redirect.html
+function escapeJS(str) {
+    return str.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
+/* ===================== Google + Outlook Web Links ===================== */
+
+function buildCalendarLinks() {
+    const summary     = document.getElementById("summary").value.trim();
+    const fullTitle   = document.getElementById("title").value.trim();
+    const startVal    = document.getElementById("start").value;
+    const endVal      = document.getElementById("end").value;
+    const description = document.getElementById("details").value;
+    const location    = document.getElementById("location").value;
+
+    if (!summary || !startVal || !endVal) {
+        alert("Please fill in Summary, Start Time, and End Time.");
+        return;
+    }
+
+    const startUTC = getUTCFromLocal(startVal);
+    const endUTC   = getUTCFromLocal(endVal);
+    if (!startUTC || !endUTC) {
+        alert("Time values are invalid.");
+        return;
+    }
+
+    // Combine full title + description for details/body
+    let fullBody = "";
+    if (fullTitle) fullBody += fullTitle + "\n\n";
+    fullBody += description || "";
+
+    // ---------- Google Calendar ----------
+    const gUrl =
+        "https://www.google.com/calendar/render?action=TEMPLATE" +
+        "&text="     + encodeURIComponent(summary) +
+        "&dates="    + startUTC.stamp + "/" + endUTC.stamp +
+        "&details="  + encodeURIComponent(fullBody) +
+        "&location=" + encodeURIComponent(location);
+
+    document.getElementById("gcalUrlOutput").value   = gUrl;
+    document.getElementById("androidUrlInput").value = gUrl;
+
+    // ---------- Outlook Web (Outlook.com) ----------
+    const oBaseLive   = "https://outlook.live.com/calendar/0/deeplink/compose?path=/calendar/action/compose&rru=addevent";
+    const oBaseOffice = "https://outlook.office.com/calendar/0/deeplink/compose?path=/calendar/action/compose&rru=addevent";
+
+    const commonParams =
+        "&subject=" + encodeURIComponent(summary) +
+        "&body="    + encodeURIComponent(fullBody) +
+        "&startdt=" + encodeURIComponent(startUTC.iso) +
+        "&enddt="   + encodeURIComponent(endUTC.iso) +
+        "&location="+ encodeURIComponent(location);
+
+    const outlookLiveUrl   = oBaseLive   + commonParams;
+    const outlookOfficeUrl = oBaseOffice + commonParams;
+
+    document.getElementById("outlookUrlOutputLive").value   = outlookLiveUrl;
+    document.getElementById("outlookUrlOutputOffice").value = outlookOfficeUrl;
+}
+
+/* ===================== ICS Generator ===================== */
+
+function generateICS() {
+    const summary     = document.getElementById("summary").value.trim();
+    const fullTitle   = document.getElementById("title").value.trim();
+    const startVal    = document.getElementById("start").value;
+    const endVal      = document.getElementById("end").value;
+    const description = document.getElementById("details").value;
+    const location    = document.getElementById("location").value;
+    const reminderMin = parseInt(document.getElementById("reminder").value, 10) || 15;
+
+    if (!summary || !startVal || !endVal) {
+        alert("Please fill in Summary, Start Time, and End Time before generating .ics.");
+        return;
+    }
+
+    const startUTC = getUTCFromLocal(startVal);
+    const endUTC   = getUTCFromLocal(endVal);
+    if (!startUTC || !endUTC) {
+        alert("Time values are invalid.");
+        return;
+    }
+
+    const dtStamp = formatDateFromDate(new Date());
+    const dtStart = startUTC.stamp;
+    const dtEnd   = endUTC.stamp;
+
+    // DESCRIPTION: Full Title + Description, with \n escaped
+    let desc = "";
+    if (fullTitle) desc += fullTitle + "\\n\\n";
+    if (description) desc += description.replace(/\r?\n/g, "\\n");
+
+    const cleanSummary  = summary.replace(/\r?\n/g, " ");
+    const cleanLocation = (location || "").replace(/\r?\n/g, " ");
+
+    const uid = "atfx-" + Date.now() + "@atcapital.group";
+
+    const crlf = "\r\n";
+    const lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//ATFX//IB//EN",
+        "BEGIN:VEVENT",
+        "UID:" + uid,
+        "DTSTAMP:" + dtStamp,
+        "DTSTART:" + dtStart,
+        "DTEND:" + dtEnd,
+        "SUMMARY:" + cleanSummary,
+        "DESCRIPTION:" + desc,
+        "LOCATION:" + cleanLocation,
+        "BEGIN:VALARM",
+        "ACTION:DISPLAY",
+        "DESCRIPTION:Reminder",
+        "TRIGGER:-PT" + reminderMin + "M",
+        "END:VALARM",
+        "END:VEVENT",
+        "END:VCALENDAR"
+    ];
+
+    const icsContent = lines.join(crlf);
+    const safeName = (summary || "event").replace(/[^a-z0-9]+/gi, "_").toLowerCase() || "event";
+
+    document.getElementById("iosUrlInput").placeholder =
+        "Upload " + safeName + ".ics and paste the HTTPS URL here";
+    document.getElementById("pcUrlInput").placeholder =
+        "Upload " + safeName + ".ics and paste the HTTPS URL here";
+
+    const blob = new Blob([icsContent], { type: "text/calendar" });
+    const url  = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = safeName + ".ics";
+    a.click();
+
+    URL.revokeObjectURL(url);
+}
+
+/* ===================== Redirect HTML Generator ===================== */
+
+function generateRedirectHTML() {
+    let iosRaw  = document.getElementById("iosUrlInput").value.trim();
+    let pcRaw   = document.getElementById("pcUrlInput").value.trim();
+    let andRaw  = document.getElementById("androidUrlInput").value.trim();
+    let file    = document.getElementById("redirectFileName").value.trim();
+
+    if (!iosRaw || !pcRaw || !andRaw) {
+        alert("Please enter iOS ICS URL, PC ICS URL, and Android Google Calendar URL.");
+        return;
+    }
+
+    // iOS / Outlook Desktop: convert HTTPS ICS link to webcal://
+    let iosWebcal = iosRaw.replace(/^https?:\/\//i, "webcal://");
+
+    iosWebcal = escapeJS(iosWebcal);
+    pcRaw     = escapeJS(pcRaw);
+    andRaw    = escapeJS(andRaw);
+
+    if (!file) file = "redirect.html";
+    if (!file.toLowerCase().endsWith(".html")) file += ".html";
+
+    const html =
+'<!DOCTYPE html>\n' +
+'<html lang="en">\n' +
+'<head>\n' +
+'<meta charset="UTF-8">\n' +
+'<title>Redirecting...</title>\n' +
+'<!-- Google Tag Manager -->\n' +
+'<script>\n' +
+'(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({\'gtm.start\':new Date().getTime(),event:\'gtm.js\'});\n' +
+'var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!=\'dataLayer\'?\'&l=\'+l:\'\';j.async=true;\n' +
+'j.src="https://www.googletagmanager.com/gtm.js?id="+i+dl;f.parentNode.insertBefore(j,f);\n' +
+'})(window,document,"script","dataLayer","GTM-W5P72GF");\n' +
+'</' + 'script>\n' +
+'<!-- End Google Tag Manager -->\n' +
+'<script>\n' +
+'document.addEventListener("DOMContentLoaded",function(){\n' +
+'  var ua = navigator.userAgent.toLowerCase();\n' +
+'  if(/android/.test(ua)) {\n' +
+'    window.location.href = "' + andRaw + '";\n' +
+'  } else if(/iphone|ipad|ipod/.test(ua)) {\n' +
+'    window.location.href = "' + iosWebcal + '";\n' +
+'  } else {\n' +
+'    window.location.href = "' + pcRaw + '";\n' +
+'  }\n' +
+'});\n' +
+'</' + 'script>\n' +
+'</head>\n' +
+'<body>\n' +
+'<!-- Google Tag Manager (noscript) -->\n' +
+'<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-W5P72GF" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>\n' +
+'<!-- End Google Tag Manager (noscript) -->\n' +
+'Redirecting...\n' +
+'</body>\n' +
+'</html>';
+
+    const blob = new Blob([html], { type: "text/html" });
+    const url  = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = file;
+    a.click();
+
+    URL.revokeObjectURL(url);
+}
+</script>
+
+</head>
+<body>
+
+<img class="logo" src="https://lp.atcapital.group/wp-content/uploads/2025/05/Logo_ATFX_white.svg" alt="ATFX">
+
+<h2>Google / Outlook / ICS Calendar Builder</h2>
+
+<label>Event Summary (short name):</label>
+<input type="text" id="summary" placeholder="e.g. Financial Freedom Workshop">
+
+<label>Full Event Title:</label>
+<input type="text" id="title" placeholder="e.g. Don't Miss Our Workshop - 2025 Top Trends & Alternatives Trading Workshop">
+
+<label>Event Description:</label>
+<textarea id="details" placeholder="Full event message, Zoom link, etc."></textarea>
+
+<label>Start Time (in selected GMT offset):</label>
+<input type="datetime-local" id="start">
+
+<label>End Time (in selected GMT offset):</label>
+<input type="datetime-local" id="end">
+
+<label>Time Zone (GMT offset):</label>
+<select id="tzOffset">
+    <option value="-720">GMT-12</option>
+    <option value="-660">GMT-11</option>
+    <option value="-600">GMT-10</option>
+    <option value="-540">GMT-9</option>
+    <option value="-480">GMT-8</option>
+    <option value="-420">GMT-7</option>
+    <option value="-360">GMT-6</option>
+    <option value="-300">GMT-5</option>
+    <option value="-240">GMT-4</option>
+    <option value="-180">GMT-3</option>
+    <option value="-120">GMT-2</option>
+    <option value="-60">GMT-1</option>
+    <option value="0" selected>GMT (UTC)</option>
+    <option value="60">GMT+1</option>
+    <option value="120">GMT+2</option>
+    <option value="180">GMT+3</option>
+    <option value="240">GMT+4</option>
+    <option value="300">GMT+5</option>
+    <option value="330">GMT+5:30</option>
+    <option value="345">GMT+5:45</option>
+    <option value="360">GMT+6</option>
+    <option value="420">GMT+7</option>
+    <option value="480">GMT+8</option>
+    <option value="540">GMT+9</option>
+    <option value="570">GMT+9:30</option>
+    <option value="600">GMT+10</option>
+    <option value="660">GMT+11</option>
+    <option value="720">GMT+12</option>
+</select>
+<small>Times you enter above are assumed to be in this GMT offset. They will be converted to UTC for calendar files/links.</small>
+
+<label>Location (URL or address):</label>
+<input type="text" id="location" placeholder="https://atfx.zoom.us/j/... or physical address">
+
+<label>Reminder (ICS alarm):</label>
+<select id="reminder">
+    <option value="5">5 minutes before</option>
+    <option value="10">10 minutes before</option>
+    <option value="15" selected>15 minutes before</option>
+    <option value="30">30 minutes before</option>
+    <option value="60">1 hour before</option>
+    <option value="120">2 hours before</option>
+    <option value="1440">1 day before</option>
+</select>
+
+<button onclick="buildCalendarLinks()">Generate Google & Outlook Web Links</button>
+
+<label>Google Calendar URL (Android):</label>
+<textarea id="gcalUrlOutput" rows="2" placeholder="Generated Google Calendar URL"></textarea>
+
+<label>Outlook Web URL (Outlook.com)(Old Outlook Format):</label>
+<textarea id="outlookUrlOutputLive" rows="2" placeholder="Generated Outlook.com Calendar URL"></textarea>
+
+<label>Outlook Web URL (Office 365):</label>
+<textarea id="outlookUrlOutputOffice" rows="2" placeholder="Generated Outlook Office 365 URL"></textarea>
+
+<button onclick="generateICS()" style="background:#ff6600;">Download .ICS File (iOS / Outlook Desktop / PC)</button>
+
+<hr>
+
+<h2>Redirect HTML Generator</h2>
+
+<label>iOS / Outlook Desktop ICS URL (HTTPS):</label>
+<input type="text" id="iosUrlInput" placeholder="Paste hosted .ics URL; will be converted to webcal:// on iOS">
+
+<label>PC ICS URL (HTTPS):</label>
+<input type="text" id="pcUrlInput" placeholder="Paste hosted .ics URL for PC">
+
+<label>Android Google Calendar URL:</label>
+<input type="text" id="androidUrlInput" placeholder="Paste Google Calendar URL (or use generated one above)">
+
+<label>Redirect HTML File Name:</label>
+<input type="text" id="redirectFileName" placeholder="redirect.html">
+
+<button onclick="generateRedirectHTML()" style="background:#111;">
+    Download redirect.html
+</button>
+
+</body>
+</html>
